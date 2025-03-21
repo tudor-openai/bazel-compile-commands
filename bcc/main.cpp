@@ -104,6 +104,7 @@ main(int argc, char** argv)
     auto builder = bcc::compile_commands_builder();
     builder.command(options.command)
       .resolve(options.resolve)
+      .include_header_files(options.include_header_files)
       .replacements(replacements)
       .workspace_path(bazel.workspace_path())
       .execution_root(bazel.execution_root())

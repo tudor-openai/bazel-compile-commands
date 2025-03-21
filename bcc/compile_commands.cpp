@@ -36,6 +36,13 @@ is_cc_suffix(std::string_view const& v)
          ends_with(v, ".c++") || ends_with(v, ".cpp") || ends_with(v, ".m") || ends_with(v, ".mm");
 }
 
+bool
+is_header_suffix(std::string_view const& v)
+{
+    return ends_with(v, ".H") || ends_with(v, ".h") || ends_with(v, ".hh") || ends_with(v, ".hxx") ||
+           ends_with(v, ".h++") || ends_with(v, ".cpp") || ends_with(v, ".tcc");
+}
+
 /// Join an array of arguments into a commands string.
 std::string
 join_arguments(boost::json::array const& args)
@@ -72,6 +79,13 @@ compile_commands_builder&
 compile_commands_builder::resolve(bool value)
 {
   resolve_ = value;
+  return *this;
+}
+
+compile_commands_builder&
+compile_commands_builder::include_header_files(bool value)
+{
+  include_header_files_ = value;
   return *this;
 }
 
@@ -127,35 +141,36 @@ compile_commands_builder::build(analysis::ActionGraphContainer const& action_gra
         return boost::json::string(replacements_.apply(a));
       });
       auto const output = art.path_of_artifact(action.primary_output_id());
-      auto file = std::optional<std::string>{};
       for (auto const& k : action.input_dep_set_ids()) {
         auto const set = dep_set.get(k);
-        file = set.find_if(is_cc_suffix);
-        if (file.has_value()) {
-          break;
-        }
-      }
+        for (auto file : set.all()) {
+          std::cerr << file << " " << is_cc_suffix(file) << " " << is_header_suffix(file) << " " << include_header_files_ << "\n";
+          if (is_cc_suffix(file) || (include_header_files_ && is_header_suffix(file))) {
+            if (resolve_) {
+              std::error_code ec;
+              auto const resolved = std::filesystem::canonical(execution_root_ / file, ec);
+              if (!ec && starts_with(resolved.string(), workspace_path_.string())) {
+                file = resolved.string();
+              }
+            }
+            auto obj = boost::json::object();
+            obj.insert(boost::json::object::value_type{ "directory", execution_root_.string() });
+            if (command_) {
+              obj.insert(boost::json::object::value_type{ "command", join_arguments(args) });
+            } else {
+              obj.insert(boost::json::object::value_type{ "arguments", args });
+            }
+            obj.insert(boost::json::object::value_type{ "file", file });
+            obj.insert(boost::json::object::value_type{ "output", output });
 
-      // input file is required
-      if (file.has_value()) {
-        if (resolve_) {
-          std::error_code ec;
-          auto const resolved = std::filesystem::canonical(execution_root_ / file.value(), ec);
-          if (!ec && starts_with(resolved.string(), workspace_path_.string())) {
-            file = resolved.string();
+            json.push_back(obj);
+
+            // Unless including header files, we can stop after the first match.
+            if (!include_header_files_) {
+              break;
+            }
           }
         }
-        auto obj = boost::json::object();
-        obj.insert(boost::json::object::value_type{ "directory", execution_root_.string() });
-        if (command_) {
-          obj.insert(boost::json::object::value_type{ "command", join_arguments(args) });
-        } else {
-          obj.insert(boost::json::object::value_type{ "arguments", args });
-        }
-        obj.insert(boost::json::object::value_type{ "file", file.value() });
-        obj.insert(boost::json::object::value_type{ "output", output });
-
-        json.push_back(obj);
       }
     }
   }

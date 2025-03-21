@@ -40,6 +40,8 @@ struct options
   bool write_rc_file{ false };
   /// Path of config file if one is found.
   std::optional<std::filesystem::path> rcpath;
+  /// Include header files in generated compile commands.
+  bool include_header_files{ false };
 
   std::ostream& write(std::ostream& os) const;
 };

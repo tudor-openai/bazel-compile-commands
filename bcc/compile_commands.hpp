@@ -19,6 +19,8 @@ public:
   compile_commands_builder& command(bool value);
   /// Resolve symlinks of file entries in the compile_commands.json file.
   compile_commands_builder& resolve(bool value);
+  /// Include header files in the compile_commands.json file.
+  compile_commands_builder& include_header_files(bool value);
   /// Set compiler.
   compile_commands_builder& compiler(std::optional<std::string> value);
   /// Set workspace location.
@@ -33,6 +35,7 @@ public:
 private:
   bool command_{ false };
   bool resolve_{ false };
+  bool include_header_files_{ false };
   std::optional<std::string> compiler_{};
   bcc::replacements replacements_{};
   std::filesystem::path workspace_path_{};
